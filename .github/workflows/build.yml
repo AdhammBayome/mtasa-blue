@@ -1,0 +1,45 @@
+name: Build MTA Auto-Connect
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Download Dependencies
+      run: |
+        echo "Downloading build dependencies..."
+        .\win-install-data.bat
+        
+    - name: Run Build Script
+      run: |
+        echo "Running build configuration..."
+        .\win-build.bat
+        
+    - name: Build MTA Client
+      run: |
+        echo "Building MTA Client..."
+        cd Build
+        msbuild MTASA.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
+        
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: MTA-AutoConnect-Build
+        path: |
+          Build/output/
+        retention-days: 30
+```
