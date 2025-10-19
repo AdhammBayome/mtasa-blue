@@ -1,45 +1,66 @@
-name: Build MTA Auto-Connect
+name: Build MTA
 
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-2022
     
     steps:
-    - name: Checkout Repository
+    - name: Checkout
       uses: actions/checkout@v4
       with:
         submodules: recursive
-        fetch-depth: 0
         
-    - name: Setup MSBuild
+    - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
       
-    - name: Download Dependencies
-      run: |
-        echo "Downloading build dependencies..."
-        .\win-install-data.bat
-        
-    - name: Run Build Script
-      run: |
-        echo "Running build configuration..."
-        .\win-build.bat
-        
-    - name: Build MTA Client
-      run: |
-        echo "Building MTA Client..."
-        cd Build
-        msbuild MTASA.sln /p:Configuration=Release /p:Platform=Win32 /m /v:minimal
-        
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Setup VS Environment
+      uses: ilammy/msvc-dev-cmd@v1
       with:
-        name: MTA-AutoConnect-Build
-        path: |
-          Build/output/
+        arch: x86
+        
+    - name: Install Data Files
+      shell: cmd
+      run: |
+        if exist utils\install-data.bat (
+          call utils\install-data.bat
+        )
+        if exist win-install-data.bat (
+          call win-install-data.bat
+        )
+        
+    - name: Create Build Files
+      shell: cmd
+      run: |
+        call win-build.bat
+        
+    - name: Build Project (Win32)
+      shell: cmd
+      run: |
+        cd Build
+        msbuild MTASA.sln /t:Build /p:Configuration=Release /p:Platform=Win32 /m /v:minimal /fl /flp:logfile=build.log;verbosity=detailed
+        
+    - name: Copy Required DLLs
+      shell: cmd
+      run: |
+        cd Build
+        if exist output\MTA (
+          echo Build succeeded
+          dir output\MTA /s
+        ) else (
+          echo Build output not found!
+          type build.log
+          exit /b 1
+        )
+        
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: MTA-Build-Win32
+        path: Build/output/**/*
         retention-days: 30
-```
